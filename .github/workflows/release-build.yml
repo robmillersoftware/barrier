@@ -1,6 +1,6 @@
-name: Barrier Release Build
+name: Barrier Release Build (macOS)
 
-"on":
+on:
   push:
     tags:
       - 'v*.*.*'    # Trigger on tags like v2.4.0
@@ -8,7 +8,7 @@ name: Barrier Release Build
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
     - name: Checkout code
@@ -16,30 +16,36 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential cmake qtbase5-dev qt5-qmake qtbase5-dev-tools libssl-dev libcurl4-openssl-dev libavahi-compat-libdnssd-dev libx11-dev libxtst-dev libxinerama-dev libxss-dev libxi-dev
+        brew update
+        brew install qt cmake create-dmg
 
     - name: Build Barrier
       run: |
         ./clean_build.sh
-        # Built files will be in ./build/bin
+        # Assume Barrier.app is created in ./build/bin or similar
 
-    - name: Package binaries
+    - name: Package as DMG
       run: |
-        cd build/bin
-        tar -czvf ../../barrier-linux-x64.tar.gz *
-        cd ../..
+        mkdir -p dist
+        create-dmg \
+          --volname "Barrier" \
+          --window-pos 200 120 \
+          --window-size 800 400 \
+          --icon-size 100 \
+          --app-drop-link 600 185 \
+          "dist/barrier-macos.dmg" \
+          "./build/bin/Barrier.app"
 
-    - name: Upload binaries as artifact
+    - name: Upload DMG as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: barrier-linux-x64
-        path: barrier-linux-x64.tar.gz
+        name: barrier-macos-dmg
+        path: dist/barrier-macos.dmg
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: barrier-linux-x64.tar.gz
+        files: dist/barrier-macos.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
