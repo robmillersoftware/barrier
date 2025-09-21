@@ -1101,8 +1101,6 @@ KeyMap::getDeadKey(KeyID key)
     }
 
     switch (key) {
-    case '`':
-        return kKeyDeadGrave;
 
     case '\'':
     case 0xb4u:
@@ -1111,10 +1109,6 @@ KeyMap::getDeadKey(KeyID key)
     case '^':
     case 0x2c6:
         return kKeyDeadCircumflex;
-
-    case '~':
-    case 0x2dcu:
-        return kKeyDeadTilde;
 
     case 0xafu:
         return kKeyDeadMacron;
