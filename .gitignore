@@ -33,3 +33,4 @@ CMakeCache.txt
 /deps/
 /out/build/x64-Debug
 barrier-linux-x64.tar.gz
+build/
