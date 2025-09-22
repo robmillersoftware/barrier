@@ -22,6 +22,7 @@ jobs:
 
     - name: Build Barrier
       run: |
+        export B_BUILD_TYPE=Release
         ./clean_build.sh
         # Assume Barrier.app is created in ./build/bin or similar
 
