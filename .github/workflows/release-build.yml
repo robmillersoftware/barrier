@@ -8,19 +8,13 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-13  # Use Intel-based runner for better compatibility
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         submodules: recursive
-
-    - name: Set up Xcode and development tools
-      run: |
-        sudo xcode-select --install || true
-        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-        echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> $GITHUB_ENV
 
     - name: Set up environment
       run: |
@@ -29,17 +23,23 @@ jobs:
 
     - name: Install dependencies
       run: |
+        # Use Intel-based Homebrew paths
         brew update
-        # Remove any existing Qt5 installation first
-        brew uninstall --ignore-dependencies qt@5 || true
-        # Clean up any leftover files
-        rm -rf /opt/homebrew/lib/cmake/Qt5* || true
-        # Install fresh Qt5
-        brew install qt@5 cmake create-dmg
-        # Force link Qt5 and set up environment
-        brew link --force qt@5
-        echo "CMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@5" >> $GITHUB_ENV
-        echo "Qt5_DIR=/opt/homebrew/opt/qt@5/lib/cmake/Qt5" >> $GITHUB_ENV
+        brew install qt@5 cmake create-dmg openssl
+        
+        # Set up Qt5 paths for Intel Mac
+        export QT5_PREFIX=$(brew --prefix qt@5)
+        echo "CMAKE_PREFIX_PATH=${QT5_PREFIX}" >> $GITHUB_ENV
+        echo "Qt5_DIR=${QT5_PREFIX}/lib/cmake/Qt5" >> $GITHUB_ENV
+        echo "PATH=${QT5_PREFIX}/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Verify Qt5 installation
+      run: |
+        echo "=== Qt5 installation check ==="
+        QT5_PREFIX=$(brew --prefix qt@5)
+        echo "Qt5 prefix: $QT5_PREFIX"
+        ls -la "$QT5_PREFIX/lib/cmake/Qt5/" || echo "Qt5 cmake files not found"
+        ls -la "$QT5_PREFIX/bin/" || echo "Qt5 binaries not found"
 
     - name: Set release version
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
@@ -48,28 +48,27 @@ jobs:
       run: |
         set -e
         set -x
+        
+        # Set up Qt5 environment
+        QT5_PREFIX=$(brew --prefix qt@5)
+        export CMAKE_PREFIX_PATH="$QT5_PREFIX"
+        export Qt5_DIR="$QT5_PREFIX/lib/cmake/Qt5"
+        export PATH="$QT5_PREFIX/bin:$PATH"
+        
         # Create build directory
         mkdir -p build
         cd build
         
-        # Use system default C++ compiler and settings
-        export CC=clang
-        export CXX=clang++
-        export CXXFLAGS="-std=c++11"
-        export LDFLAGS="-lc++"
-        
-        # Configure CMake with simpler flags
+        # Configure CMake
         cmake -DCMAKE_BUILD_TYPE=Release \
               -DBARRIER_BUILD_INSTALLER=ON \
               -DBARRIER_BUILD_TESTS=OFF \
-              -DCMAKE_OSX_DEPLOYMENT_TARGET=10.14 \
-              -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5" \
-              -DQt5_DIR="/opt/homebrew/opt/qt@5/lib/cmake/Qt5" \
-              -DCMAKE_C_COMPILER=clang \
-              -DCMAKE_CXX_COMPILER=clang++ \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 \
+              -DCMAKE_PREFIX_PATH="$QT5_PREFIX" \
+              -DQt5_DIR="$QT5_PREFIX/lib/cmake/Qt5" \
               ..
         
-        # Build only the main targets (not tests)
+        # Build only the main targets
         make barrier barriers barrierc -j$(sysctl -n hw.ncpu)
         
         # Build the macOS bundle target
@@ -82,43 +81,4 @@ jobs:
         echo "=== Looking for Barrier.app ==="
         find . -name "Barrier.app" -type d
         echo "=== Bundle contents ==="
-        if [ -d "build/bundle/Barrier.app" ]; then
-          ls -la build/bundle/Barrier.app/
-          ls -la build/bundle/Barrier.app/Contents/
-          ls -la build/bundle/Barrier.app/Contents/MacOS/ || true
-          echo "=== Binary sizes ==="
-          du -h build/bundle/Barrier.app/Contents/MacOS/* || true
-        fi
-        echo "=== Check if build_dist.sh was generated ==="
-        ls -la build/bundle/build_dist.sh || echo "build_dist.sh not found"
-
-    - name: Package as DMG
-      run: |
-        if [ ! -d "build/bundle/Barrier.app" ]; then
-          echo "Error: Barrier.app bundle not found!"
-          exit 1
-        fi
-        
-        mkdir -p dist
-        create-dmg \
-          --volname "Barrier ${{ env.RELEASE_VERSION }}" \
-          --window-pos 200 120 \
-          --window-size 800 400 \
-          --icon-size 100 \
-          --app-drop-link 600 185 \
-          "dist/barrier-macos-${{ env.RELEASE_VERSION }}.dmg" \
-          "build/bundle/Barrier.app"
-
-    - name: Upload DMG as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: barrier-macos-dmg
-        path: dist/barrier-macos-*.dmg
-
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/barrier-macos-*.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if
