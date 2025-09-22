@@ -3,7 +3,7 @@ name: Barrier Release Build (macOS)
 on:
   push:
     tags:
-      - 'v*.*.*'    # Trigger on tags like v2.4.0
+      - 'v*.*.*'
   workflow_dispatch:
 
 jobs:
@@ -14,13 +14,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        submodules: recursive  # Important for Barrier's dependencies
+        submodules: recursive
 
     - name: Set up environment
       run: |
-        # Fix tput issues by setting TERM
         echo "TERM=xterm-256color" >> $GITHUB_ENV
         echo "B_BUILD_TYPE=Release" >> $GITHUB_ENV
+        echo "BARRIER_BUILD_INSTALLER=ON" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: |
@@ -29,51 +29,54 @@ jobs:
         brew link --force qt@5
 
     - name: Set release version
-      id: vars
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
         
-    - name: Build Barrier
+    - name: Build Barrier with Bundle
       run: |
-        set -e  # Exit on any error
-        set -x  # Show commands being executed
+        set -e
+        set -x
         ./clean_build.sh
+        # Explicitly build the macOS bundle target
+        cd build
+        make Barrier_MacOS
 
-    - name: Debug build output
-      if: always()
+    - name: Verify bundle creation
       run: |
-        echo "=== Build directory contents ==="
-        find build -type f -name "*.app" -o -name "*.dmg" 2>/dev/null || true
+        echo "=== Looking for bundle directory ==="
+        find . -name "bundle" -type d
         echo "=== Looking for Barrier.app ==="
-        find . -name "Barrier.app" -type d 2>/dev/null || true
-        echo "=== Build bin directory ==="
-        ls -la build/bin/ 2>/dev/null || echo "build/bin not found"
+        find . -name "Barrier.app" -type d
+        echo "=== Bundle contents ==="
+        if [ -d "build/bundle/Barrier.app" ]; then
+          ls -la build/bundle/Barrier.app/
+          ls -la build/bundle/Barrier.app/Contents/
+          ls -la build/bundle/Barrier.app/Contents/MacOS/ || true
+          echo "=== Binary sizes ==="
+          du -h build/bundle/Barrier.app/Contents/MacOS/* || true
+        fi
 
     - name: Package as DMG
       run: |
-        # Find the actual Barrier.app location
-        APP_PATH=$(find . -name "Barrier.app" -type d | head -n 1)
-        if [ -z "$APP_PATH" ]; then
-          echo "Error: Barrier.app not found!"
+        if [ ! -d "build/bundle/Barrier.app" ]; then
+          echo "Error: Barrier.app bundle not found!"
           exit 1
         fi
-        echo "Found Barrier.app at: $APP_PATH"
         
         mkdir -p dist
         create-dmg \
-          --volname "Barrier" \
+          --volname "Barrier ${{ env.RELEASE_VERSION }}" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
           --app-drop-link 600 185 \
           "dist/barrier-macos-${{ env.RELEASE_VERSION }}.dmg" \
-          "$APP_PATH"
+          "build/bundle/Barrier.app"
 
     - name: Upload DMG as artifact
-      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: barrier-macos-dmg
-        path: /Users/runner/work/barrier/barrier/master.dmg
+        path: dist/barrier-macos-*.dmg
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
