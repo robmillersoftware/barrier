@@ -24,8 +24,24 @@ jobs:
     - name: Install dependencies
       run: |
         brew update
+        # Remove any existing Qt5 installation first
+        brew uninstall --ignore-dependencies qt@5 || true
+        # Clean up any leftover files
+        rm -rf /opt/homebrew/lib/cmake/Qt5* || true
+        # Install fresh Qt5
         brew install qt@5 cmake create-dmg
+        # Force link Qt5 and set up environment
         brew link --force qt@5
+        echo "CMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@5" >> $GITHUB_ENV
+        echo "Qt5_DIR=/opt/homebrew/opt/qt@5/lib/cmake/Qt5" >> $GITHUB_ENV
+
+    - name: Verify Qt5 installation
+      run: |
+        echo "=== Qt5 installation check ==="
+        ls -la /opt/homebrew/opt/qt@5/lib/cmake/Qt5/
+        ls -la /opt/homebrew/opt/qt@5/mkspecs/
+        echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
+        echo "Qt5_DIR: $Qt5_DIR"
 
     - name: Set release version
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
@@ -38,10 +54,12 @@ jobs:
         mkdir -p build
         cd build
         
-        # Configure CMake with installer flag
+        # Configure CMake with installer flag and explicit Qt5 paths
         cmake -DCMAKE_BUILD_TYPE=Release \
               -DBARRIER_BUILD_INSTALLER=ON \
               -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 \
+              -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5" \
+              -DQt5_DIR="/opt/homebrew/opt/qt@5/lib/cmake/Qt5" \
               ..
         
         # Build the project
