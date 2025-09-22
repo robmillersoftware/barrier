@@ -16,6 +16,12 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Set up Xcode and development tools
+      run: |
+        sudo xcode-select --install || true
+        sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> $GITHUB_ENV
+
     - name: Set up environment
       run: |
         echo "TERM=xterm-256color" >> $GITHUB_ENV
@@ -46,15 +52,21 @@ jobs:
         mkdir -p build
         cd build
         
-        # Configure CMake with installer flag, explicit Qt5 paths, disable tests, and fix C++ stdlib
+        # Use system default C++ compiler and settings
+        export CC=clang
+        export CXX=clang++
+        export CXXFLAGS="-std=c++11"
+        export LDFLAGS="-lc++"
+        
+        # Configure CMake with simpler flags
         cmake -DCMAKE_BUILD_TYPE=Release \
               -DBARRIER_BUILD_INSTALLER=ON \
               -DBARRIER_BUILD_TESTS=OFF \
-              -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=10.14 \
               -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5" \
               -DQt5_DIR="/opt/homebrew/opt/qt@5/lib/cmake/Qt5" \
-              -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
-              -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
+              -DCMAKE_C_COMPILER=clang \
+              -DCMAKE_CXX_COMPILER=clang++ \
               ..
         
         # Build only the main targets (not tests)
