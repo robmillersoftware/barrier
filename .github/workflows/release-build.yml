@@ -39,6 +39,7 @@ jobs:
           "./build/bin/Barrier.app"
 
     - name: Upload DMG as artifact
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: barrier-macos-dmg
