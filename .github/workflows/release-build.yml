@@ -46,13 +46,15 @@ jobs:
         mkdir -p build
         cd build
         
-        # Configure CMake with installer flag, explicit Qt5 paths, and disable tests
+        # Configure CMake with installer flag, explicit Qt5 paths, disable tests, and fix C++ stdlib
         cmake -DCMAKE_BUILD_TYPE=Release \
               -DBARRIER_BUILD_INSTALLER=ON \
               -DBARRIER_BUILD_TESTS=OFF \
               -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 \
               -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5" \
               -DQt5_DIR="/opt/homebrew/opt/qt@5/lib/cmake/Qt5" \
+              -DCMAKE_CXX_FLAGS="-stdlib=libc++" \
+              -DCMAKE_EXE_LINKER_FLAGS="-stdlib=libc++" \
               ..
         
         # Build only the main targets (not tests)
