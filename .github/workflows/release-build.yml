@@ -13,6 +13,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        submodules: recursive  # Important for Barrier's dependencies
+
+    - name: Set up environment
+      run: |
+        # Fix tput issues by setting TERM
+        echo "TERM=xterm-256color" >> $GITHUB_ENV
+        echo "B_BUILD_TYPE=Release" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: |
@@ -26,12 +34,30 @@ jobs:
         
     - name: Build Barrier
       run: |
-        export B_BUILD_TYPE=Release
+        set -e  # Exit on any error
+        set -x  # Show commands being executed
         ./clean_build.sh
-        # Assume Barrier.app is created in ./build/bin or similar
+
+    - name: Debug build output
+      if: always()
+      run: |
+        echo "=== Build directory contents ==="
+        find build -type f -name "*.app" -o -name "*.dmg" 2>/dev/null || true
+        echo "=== Looking for Barrier.app ==="
+        find . -name "Barrier.app" -type d 2>/dev/null || true
+        echo "=== Build bin directory ==="
+        ls -la build/bin/ 2>/dev/null || echo "build/bin not found"
 
     - name: Package as DMG
       run: |
+        # Find the actual Barrier.app location
+        APP_PATH=$(find . -name "Barrier.app" -type d | head -n 1)
+        if [ -z "$APP_PATH" ]; then
+          echo "Error: Barrier.app not found!"
+          exit 1
+        fi
+        echo "Found Barrier.app at: $APP_PATH"
+        
         mkdir -p dist
         create-dmg \
           --volname "Barrier" \
@@ -39,20 +65,20 @@ jobs:
           --window-size 800 400 \
           --icon-size 100 \
           --app-drop-link 600 185 \
-          "dist/barrier-macos.dmg" \
-          "./build/bin/Barrier.app"
+          "dist/barrier-macos-${{ env.RELEASE_VERSION }}.dmg" \
+          "$APP_PATH"
 
     - name: Upload DMG as artifact
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: barrier-macos-dmg
-        path: ./build/bin/Barrier-${{ env.RELEASE_VERSION }}-release.dmg
+        path: dist/barrier-macos-*.dmg
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: dist/barrier-macos.dmg
+        files: dist/barrier-macos-*.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
