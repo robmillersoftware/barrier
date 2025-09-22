@@ -20,7 +20,6 @@ jobs:
       run: |
         echo "TERM=xterm-256color" >> $GITHUB_ENV
         echo "B_BUILD_TYPE=Release" >> $GITHUB_ENV
-        echo "BARRIER_BUILD_INSTALLER=ON" >> $GITHUB_ENV
 
     - name: Install dependencies
       run: |
@@ -35,9 +34,20 @@ jobs:
       run: |
         set -e
         set -x
-        ./clean_build.sh
-        # Explicitly build the macOS bundle target
+        # Create build directory
+        mkdir -p build
         cd build
+        
+        # Configure CMake with installer flag
+        cmake -DCMAKE_BUILD_TYPE=Release \
+              -DBARRIER_BUILD_INSTALLER=ON \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 \
+              ..
+        
+        # Build the project
+        make -j$(sysctl -n hw.ncpu)
+        
+        # Build the macOS bundle target
         make Barrier_MacOS
 
     - name: Verify bundle creation
