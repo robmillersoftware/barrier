@@ -35,14 +35,6 @@ jobs:
         echo "CMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@5" >> $GITHUB_ENV
         echo "Qt5_DIR=/opt/homebrew/opt/qt@5/lib/cmake/Qt5" >> $GITHUB_ENV
 
-    - name: Verify Qt5 installation
-      run: |
-        echo "=== Qt5 installation check ==="
-        ls -la /opt/homebrew/opt/qt@5/lib/cmake/Qt5/
-        ls -la /opt/homebrew/opt/qt@5/mkspecs/
-        echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
-        echo "Qt5_DIR: $Qt5_DIR"
-
     - name: Set release version
       run: echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
         
@@ -54,16 +46,17 @@ jobs:
         mkdir -p build
         cd build
         
-        # Configure CMake with installer flag and explicit Qt5 paths
+        # Configure CMake with installer flag, explicit Qt5 paths, and disable tests
         cmake -DCMAKE_BUILD_TYPE=Release \
               -DBARRIER_BUILD_INSTALLER=ON \
+              -DBARRIER_BUILD_TESTS=OFF \
               -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13 \
               -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt@5" \
               -DQt5_DIR="/opt/homebrew/opt/qt@5/lib/cmake/Qt5" \
               ..
         
-        # Build the project
-        make -j$(sysctl -n hw.ncpu)
+        # Build only the main targets (not tests)
+        make barrier barriers barrierc -j$(sysctl -n hw.ncpu)
         
         # Build the macOS bundle target
         make Barrier_MacOS
@@ -82,6 +75,8 @@ jobs:
           echo "=== Binary sizes ==="
           du -h build/bundle/Barrier.app/Contents/MacOS/* || true
         fi
+        echo "=== Check if build_dist.sh was generated ==="
+        ls -la build/bundle/build_dist.sh || echo "build_dist.sh not found"
 
     - name: Package as DMG
       run: |
